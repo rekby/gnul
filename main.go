@@ -89,11 +89,11 @@ func Main() {
 		}
 	}
 
-	var fileNamesReader func(readOrder chan <- *FileInfo)
+	var fileNamesReader func(readOrder chan<- *FileInfo)
 	if pflag.NArg() > 0 {
-		fileNamesReader = func(readOrder chan <- *FileInfo){ReadFilesFromArgs(readOrder, pflag.Args()...)}
+		fileNamesReader = func(readOrder chan<- *FileInfo) { ReadFilesFromArgs(readOrder, pflag.Args()...) }
 	} else {
-		fileNamesReader = func(readOrder chan <- *FileInfo){ReadFilesFromStdIn(readOrder)}
+		fileNamesReader = func(readOrder chan<- *FileInfo) { ReadFilesFromStdIn(readOrder) }
 	}
 
 	// start process
@@ -112,13 +112,13 @@ func Main() {
 	}()
 
 	resultOrder := make(chan ScanResult, runtime.NumCPU())
-	go func (){
+	go func() {
 		StartScanners(rules, scanOrder, resultOrder, *scannerCount)
 		close(resultOrder)
 	}()
 
 	// Start read filenames
-	go func(){
+	go func() {
 		fileNamesReader(readOrder)
 		close(readOrder)
 	}()
