@@ -8,5 +8,3 @@ func PrintFileNameAndRule(results <-chan ScanResult) {
 		fmt.Println(res.File.Path, res.Title)
 	}
 }
-
-func
