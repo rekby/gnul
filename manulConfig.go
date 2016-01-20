@@ -13,7 +13,7 @@ type ManulRule struct {
 	ChildId string `xml:"child_id,attr"`
 	Sever   string `xml:"sever,attr"`
 	Title   string `xml:"title,attr"`
-	Content string `xml:",innerxml`
+	Content string `xml:",chardata"`
 }
 
 type ManulConfig struct {
