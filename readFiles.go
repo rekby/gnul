@@ -1,19 +1,25 @@
 package gnul
 
 import (
+	"bufio"
 	"io/ioutil"
 	"log"
 	"os"
 )
 
-var MAX_FILE_SIZE = 10 * 1024 * 1024 // Default 10MB
+var MAX_FILE_SIZE int64 = 10 * 1024 * 1024 // Default 10MB
 
-type Task func()[]ScanResult
+type Task func() []ScanResult
 
 func StartReaders(readOrder, outOrder chan *FileInfo, readersCount int) {
 	Readers.Add(readersCount)
 	for i := 0; i < readersCount; i++ {
-		go ReadFiles(readOrder, outOrder)
+		go func() {
+			log.Println("Start reader")
+			ReadFiles(readOrder, outOrder)
+			Readers.Done()
+			log.Println("Close reader")
+		}()
 	}
 }
 
@@ -24,8 +30,6 @@ func ReadFiles(in <-chan *FileInfo, out chan<- *FileInfo) {
 		if err != nil {
 			log.Println("ReadFiles error (panic): ", err)
 			ReadFiles(in, out)
-		} else {
-			Readers.Done()
 		}
 	}()
 
@@ -48,53 +52,27 @@ func ReadFiles(in <-chan *FileInfo, out chan<- *FileInfo) {
 	}
 }
 
-func StartScanners(rules []Rule, scanOrder <- chan *FileInfo, resultOrder chan <-ScanResult, scannerCount int){
-	tasks := make(Task, scannerCount)
-	go Dispatcher(rules, scanOrder, tasks)
-
-	Scanners.Add(scannerCount)
-	for i := 0; i < scannerCount; i++{
-		go Scanner(tasks, resultOrder)
+// It close readOrder
+func ReadFilesFromArgs(readOrder chan<- *FileInfo, files ...string) {
+	defer close(readOrder)
+	for _, filePath := range files {
+		readOrder <- &FileInfo{Path: filePath}
 	}
 }
 
-func Dispatcher(rules []Rule, scanOrder <- chan * FileInfo, taskOrder chan <- Task){
-	// Never die by error
-	defer func(){
-		err := recover()
-		if err != nil {
-			log.Println("Error in Dispatcher: ", err)
-			Dispatcher(rules, scanOrder, taskOrder)
-		} else {
-			close(taskOrder)
-		}
-	}()
+// It block until EOF in stdin or any error, then close readOrder
+func ReadFilesFromStdIn(readOrder chan<- *FileInfo) {
+	defer close(readOrder)
 
-	for file := range scanOrder {
-		for _, rule := range rules {
-			taskOrder <- func()[]ScanResult{
-				return rule(file)
-			}
+	scanner := bufio.NewScanner(os.Stdin)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" {
+			continue
 		}
+		readOrder <- &FileInfo{Path: line}
 	}
-}
-
-func Scanner(taskOrder <- chan Task, resultOrder chan <- ScanResult){
-	// Never die by error
-	defer func(){
-		err := recover()
-		if err != nil {
-			log.Println("Scanner error (panic): ", err)
-			Scanner(taskOrder,resultOrder)
-		} else {
-			Scanners.Done()
-		}
-	}()
-
-	for task := range taskOrder {
-		scanResults := task()
-		for _, res := range scanResults {
-			resultOrder <- res
-		}
+	if scanner.Err() != nil {
+		log.Println("Error while read filenames from stdin:", scanner.Err())
 	}
 }

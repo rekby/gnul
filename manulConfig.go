@@ -35,7 +35,8 @@ func (this ManulRule) ToRule() Rule {
 	case "const":
 		fu := func(f *FileInfo) (res []ScanResult) {
 			startByte := 0
-			for pos := 0; pos != -1; pos = bytes.Index(f.Content[startByte:], []byte(this.Content)) {
+			content := f.GetContent()
+			for pos := 0; pos != -1; pos = bytes.Index(content[startByte:], []byte(this.Content)) {
 				res = append(res, ScanResult{
 					File:          f,
 					Sever:         sever,
@@ -54,11 +55,12 @@ func (this ManulRule) ToRule() Rule {
 			return nil
 		}
 		return func(f *FileInfo) (res []ScanResult) {
-			resRanges := re.FindAllIndex(f.Content, -1)
+			content := f.GetContent()
+			resRanges := re.FindAllIndex(content, -1)
 			if resRanges == nil {
 				return nil
 			}
-			res = make([]ScanResult, len(resRanges), 0)
+			res = make([]ScanResult, 0, len(resRanges))
 			for _, resRange := range resRanges {
 				res = append(res, ScanResult{
 					File:          f,
