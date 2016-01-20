@@ -2,6 +2,6 @@ package main
 
 import "github.com/rekby/gnul"
 
-func main(){
+func main() {
 	gnul.Main()
 }
