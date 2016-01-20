@@ -5,22 +5,26 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"sync"
 )
 
 var MAX_FILE_SIZE int64 = 10 * 1024 * 1024 // Default 10MB
 
 type Task func() []ScanResult
 
+// Block until all readers stop
 func StartReaders(readOrder, outOrder chan *FileInfo, readersCount int) {
-	Readers.Add(readersCount)
+	var readers sync.WaitGroup
+	readers.Add(readersCount)
 	for i := 0; i < readersCount; i++ {
 		go func() {
-			log.Println("Start reader")
+			//log.Println("Start reader")
 			ReadFiles(readOrder, outOrder)
-			Readers.Done()
-			log.Println("Close reader")
+			readers.Done()
+			//log.Println("Close reader")
 		}()
 	}
+	readers.Wait()
 }
 
 func ReadFiles(in <-chan *FileInfo, out chan<- *FileInfo) {
@@ -43,18 +47,14 @@ func ReadFiles(in <-chan *FileInfo, out chan<- *FileInfo) {
 	}
 }
 
-// It close readOrder
 func ReadFilesFromArgs(readOrder chan<- *FileInfo, files ...string) {
-	defer close(readOrder)
 	for _, filePath := range files {
 		readOrder <- &FileInfo{Path: filePath}
 	}
 }
 
-// It block until EOF in stdin or any error, then close readOrder
+// It block until EOF in stdin or any error
 func ReadFilesFromStdIn(readOrder chan<- *FileInfo) {
-	defer close(readOrder)
-
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		line := scanner.Text()

@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"log"
 	"runtime"
-	"sync"
 )
 
 //go:generate stringer -type Severenity
@@ -44,10 +43,6 @@ func (this *FileInfo) GetContent() []byte {
 
 // Return nil if nothing was finded
 type Rule func(f *FileInfo) []ScanResult
-
-var Readers sync.WaitGroup
-var Scanners sync.WaitGroup
-var WritersResult sync.WaitGroup
 
 //go:generate go-bindata manulBase.xml
 func Main() {
@@ -94,43 +89,41 @@ func Main() {
 		}
 	}
 
+	var fileNamesReader func(readOrder chan <- *FileInfo)
+	if pflag.NArg() > 0 {
+		fileNamesReader = func(readOrder chan <- *FileInfo){ReadFilesFromArgs(readOrder, pflag.Args()...)}
+	} else {
+		fileNamesReader = func(readOrder chan <- *FileInfo){ReadFilesFromStdIn(readOrder)}
+	}
 
 	// start process
 	if *readersCount == 0 {
 		*readersCount = runtime.NumCPU()/2 + 1
 	}
 	readOrder := make(chan *FileInfo, *readersCount)
+
 	if *scannerCount == 0 {
 		*scannerCount = runtime.NumCPU()/2 + 1
 	}
 	scanOrder := make(chan *FileInfo, *scannerCount)
-	StartReaders(readOrder, scanOrder, *readersCount)
+	go func() {
+		StartReaders(readOrder, scanOrder, *readersCount)
+		close(scanOrder)
+	}()
 
 	resultOrder := make(chan ScanResult, runtime.NumCPU())
-	StartScanners(rules, scanOrder, resultOrder, *scannerCount)
-
-	WritersResult.Add(1)
-	go func() {
-		PrintFileNameAndRule(resultOrder)
-		WritersResult.Done()
+	go func (){
+		StartScanners(rules, scanOrder, resultOrder, *scannerCount)
+		close(resultOrder)
 	}()
 
 	// Start read filenames
-	if pflag.NArg() > 0 {
-		ReadFilesFromArgs(readOrder, pflag.Args()...)
-	} else {
-		go ReadFilesFromStdIn(readOrder)
-	}
+	go func(){
+		fileNamesReader(readOrder)
+		close(readOrder)
+	}()
 
-	// Graceful stop
-	Readers.Wait()
-	log.Println("Close scan order")
-	close(scanOrder)
-
-	Scanners.Wait()
-	close(resultOrder)
-
-	WritersResult.Wait()
+	PrintFileNameAndRule(resultOrder)
 }
 
 func printHelp() {

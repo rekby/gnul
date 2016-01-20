@@ -1,20 +1,23 @@
 package gnul
 
-import "log"
+import (
+	"sync"
+)
 
+// Block until stop all scanners
 func StartScanners(rules []Rule, scanOrder <-chan *FileInfo, resultOrder chan<- ScanResult, scannerCount int) {
 	tasks := make(chan Task, scannerCount)
 	go Dispatcher(rules, scanOrder, tasks)
 
-	Scanners.Add(scannerCount)
+	var scanners sync.WaitGroup
+	scanners.Add(scannerCount)
 	for i := 0; i < scannerCount; i++ {
 		go func() {
-			log.Println("Start scanner")
 			Scanner(tasks, resultOrder)
-			log.Println("Close scanner")
-			Scanners.Done()
+			scanners.Done()
 		}()
 	}
+	scanners.Wait()
 }
 
 func Dispatcher(rules []Rule, scanOrder <-chan *FileInfo, taskOrder chan<- Task) {
