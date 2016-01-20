@@ -24,15 +24,6 @@ func StartReaders(readOrder, outOrder chan *FileInfo, readersCount int) {
 }
 
 func ReadFiles(in <-chan *FileInfo, out chan<- *FileInfo) {
-	// Never die by error
-	defer func() {
-		err := recover()
-		if err != nil {
-			log.Println("ReadFiles error (panic): ", err)
-			ReadFiles(in, out)
-		}
-	}()
-
 	for file := range in {
 		stat, err := os.Stat(file.Path)
 		if err != nil {
